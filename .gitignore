@@ -1,0 +1,13 @@
+# Built binaries (rebuild with: go build)
+*.exe
+hollow-signal
+
+# Test and coverage output
+*.test
+*.out
+
+# Editors and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

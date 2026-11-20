@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollow Signal Theme Lab</title>
+<!-- Fonts to try. Needs internet; falls back to system fonts offline. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=JetBrains+Mono:wght@400;600&family=Oswald:wght@500;700&family=Saira+Stencil+One&family=Share+Tech+Mono&family=VT323&display=swap">
+<style>
+/* ---------- Lab chrome: fixed neutral colors, NOT affected by the theme ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { display: flex; background: #1b1b1f; color: #ddd; font: 13px/1.4 system-ui, sans-serif; }
+#lab { width: 300px; flex: none; height: 100vh; overflow-y: auto; padding: 12px; background: #232329; border-right: 1px solid #333; }
+#lab h1 { font-size: 15px; margin: 0 0 4px; }
+#lab h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #999; margin: 16px 0 6px; border-top: 1px solid #333; padding-top: 10px; }
+#lab .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 5px 0; }
+#lab .row label { flex: 1; }
+#lab .row output { width: 38px; text-align: right; color: #aaa; font-family: monospace; }
+#lab input[type=range] { width: 110px; }
+#lab select { width: 150px; }
+#lab .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+#lab button { background: #333; color: #eee; border: 1px solid #555; padding: 5px 8px; cursor: pointer; border-radius: 3px; }
+#lab button.on { background: #4a6cf7; border-color: #4a6cf7; }
+#lab textarea { width: 100%; height: 120px; background: #15151a; color: #cfc; border: 1px solid #444; font: 11px monospace; }
+#lab .hint { color: #888; font-size: 11px; }
+
+/* ---------- The dashboard preview: everything uses the theme variables ---------- */
+#app {
+  flex: 1; height: 100vh; display: grid;
+  grid-template-rows: auto 1fr auto; grid-template-columns: 60fr 40fr;
+  gap: var(--gap); padding: var(--gap);
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-text); font-size: var(--font-size);
+  position: relative; overflow: hidden;
+}
+.panel { background: var(--panel); border: var(--border-w) solid var(--border); border-radius: var(--radius); min-height: 0; }
+.head { font-family: var(--font-head); letter-spacing: .06em; text-transform: uppercase; }
+.data { font-family: var(--font-data); }
+
+/* Top bar */
+#top { grid-column: 1 / 3; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
+#top .brand { font-size: 1.5em; color: var(--accent); }
+#banner { padding: 6px 14px; border-radius: var(--radius); font-weight: 700; border: var(--border-w) solid currentColor; }
+#banner.online { color: var(--ok); }
+#banner.severed { color: var(--danger); background: color-mix(in srgb, var(--danger) 15%, transparent); }
+#sig { color: var(--muted); }
+#sig b { color: var(--ok); }
+
+/* Map */
+#mapwrap { position: relative; transition: filter .3s; }
+#mapwrap h3, #side h3 { margin: 0; padding: 8px 12px; font-size: 1em; color: var(--muted); border-bottom: var(--border-w) solid var(--border); }
+#map { width: 100%; height: calc(100% - 36px); display: block; }
+.band { fill: var(--text); }
+.band-label { fill: var(--muted); font-family: var(--font-data); font-size: 12px; }
+.link { stroke: var(--border); stroke-linecap: round; }
+.link.cut { stroke: var(--danger); stroke-dasharray: 7 7; }
+.link.path { stroke: var(--accent); filter: drop-shadow(0 0 var(--glow) var(--accent)); }
+.node circle { fill: var(--panel); stroke: var(--accent); }
+.node text { fill: var(--text); font-family: var(--font-data); font-size: 11px; text-anchor: middle; }
+.node.offline circle { stroke: var(--muted); fill: var(--bg); }
+.node.offline text { fill: var(--muted); text-decoration: line-through; }
+.node.onpath circle { fill: var(--accent); }
+/* Severed state: the map dims (blackout) */
+#app.severed #mapwrap, #app.attack #mapwrap { filter: brightness(var(--dim)); }
+
+/* Right panel */
+#side { display: grid; grid-template-rows: 1fr auto; gap: var(--gap); background: none; border: 0; }
+#feed { overflow-y: auto; }
+#feed ul { list-style: none; margin: 0; padding: 6px 10px; }
+#feed li { padding: 4px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); display: flex; gap: 8px; }
+.tag { flex: none; width: 82px; text-align: center; font-size: .8em; padding: 1px 4px; border-radius: var(--radius); border: 1px solid currentColor; text-transform: uppercase; }
+.t-delivered { color: var(--ok); } .t-broadcast { color: var(--accent); }
+.t-rejected { color: var(--danger); } .t-notice { color: var(--muted); } .t-other { color: var(--text); }
+#metrics .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; }
+.tile { border: var(--border-w) solid var(--border); border-radius: var(--radius); padding: 8px; }
+.tile .n { font-size: 1.7em; color: var(--accent); }
+.tile .l { font-size: .75em; color: var(--muted); text-transform: uppercase; }
+
+/* Bottom bar */
+#bottom { grid-column: 1 / 3; display: flex; gap: 8px; padding: 10px; }
+#bottom button { font-family: var(--font-head); letter-spacing: .05em; font-size: 1em; padding: 8px 14px; cursor: pointer;
+  background: transparent; color: var(--text); border: var(--border-w) solid var(--border); border-radius: var(--radius); }
+#bottom button.attack { margin-left: auto; color: var(--danger); border-color: var(--danger); }
+
+/* Toast + attack flash */
+#toast { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); display: none;
+  background: var(--danger); color: #fff; padding: 10px 18px; border-radius: var(--radius); font-family: var(--font-head); font-size: 1.1em; z-index: 5; }
+#app.attack #toast { display: block; }
+#app.attack.flash::before { content: ""; position: absolute; inset: 0; border: 6px solid var(--danger); pointer-events: none; z-index: 4; }
+
+/* Effects */
+#app.scanlines::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 6;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,var(--scan)) 0 1px, transparent 1px 3px); }
+#app.vignette { box-shadow: inset 0 0 160px rgba(0,0,0,.85); }
+#app.lights #top { box-shadow: 0 2px 18px -4px var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="lab">
+  <h1>Hollow Signal Theme Lab</h1>
+  <div class="hint">Pick a preset, tweak, compare with Figma, then copy your picks.</div>
+
+  <h2>Preset</h2>
+  <div class="btns" id="presets"></div>
+
+  <h2>State</h2>
+  <div class="btns" id="states"></div>
+
+  <div id="controls"></div>
+
+  <h2>Export</h2>
+  <div class="btns">
+    <button id="copyCss">Copy CSS variables</button>
+    <button id="copyPicks">Copy picks</button>
+    <button id="reset">Reset</button>
+  </div>
+  <textarea id="out" readonly></textarea>
+</div>
+
+<main id="app">
+  <header id="top" class="panel">
+    <span class="brand head">Hollow Signal</span>
+    <span id="banner" class="head online">Directorate network: online</span>
+    <span id="sig" class="data">Signatures: <b>ON</b></span>
+  </header>
+
+  <section id="mapwrap" class="panel">
+    <h3 class="head">Hollow cross-section</h3>
+    <svg id="map" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet"></svg>
+  </section>
+
+  <section id="side" class="panel">
+    <div id="feed" class="panel"><h3 class="head">Live feed</h3><ul id="feedlist" class="data"></ul></div>
+    <div id="metrics" class="panel"><h3 class="head">Metrics</h3><div class="tiles data" id="tiles"></div></div>
+  </section>
+
+  <footer id="bottom" class="panel">
+    <button>Start scenario</button><button>Send check-in</button><button>Send emergency</button>
+    <button>Cut link</button><button>Kill device</button>
+    <button class="attack">Directorate attack</button>
+  </footer>
+
+  <div id="toast">FORGED MESSAGE REJECTED: INVALID SIGNATURE</div>
+</main>
+
+<script>
+// ---------- Controls: one entry per tweakable parameter ----------
+// css: the CSS variable it sets. cls: a class toggled on #app instead.
+const CONTROLS = [
+  { group: "Colors" },
+  { key: "bg",      label: "Background", type: "color", css: "--bg" },
+  { key: "panel",   label: "Panels",     type: "color", css: "--panel" },
+  { key: "border",  label: "Borders",    type: "color", css: "--border" },
+  { key: "text",    label: "Text",       type: "color", css: "--text" },
+  { key: "muted",   label: "Muted text", type: "color", css: "--muted" },
+  { key: "accent",  label: "Accent (amber)", type: "color", css: "--accent" },
+  { key: "danger",  label: "Danger (red)",   type: "color", css: "--danger" },
+  { key: "ok",      label: "Verified (green)", type: "color", css: "--ok" },
+  { group: "Fonts" },
+  { key: "fontHead", label: "Headings", type: "select", css: "--font-head",
+    options: ["system-ui, sans-serif", "'Oswald', sans-serif", "'Bebas Neue', sans-serif", "'Saira Stencil One', sans-serif"] },
+  { key: "fontText", label: "Body", type: "select", css: "--font-text",
+    options: ["system-ui, sans-serif", "'IBM Plex Mono', monospace", "'Share Tech Mono', monospace"] },
+  { key: "fontData", label: "Data / feed", type: "select", css: "--font-data",
+    options: ["ui-monospace, Consolas, monospace", "'JetBrains Mono', monospace", "'IBM Plex Mono', monospace", "'Share Tech Mono', monospace", "'VT323', monospace"] },
+  { key: "fontSize", label: "Base size", type: "range", css: "--font-size", min: 11, max: 18, step: 1, unit: "px" },
+  { group: "Shape" },
+  { key: "radius",  label: "Corner radius", type: "range", css: "--radius", min: 0, max: 14, step: 1, unit: "px" },
+  { key: "borderW", label: "Border width",  type: "range", css: "--border-w", min: 1, max: 4, step: 1, unit: "px" },
+  { key: "gap",     label: "Spacing",       type: "range", css: "--gap", min: 4, max: 20, step: 1, unit: "px" },
+  { group: "Map" },
+  { key: "nodeR",   label: "Node size",   type: "range", min: 8, max: 26, step: 1 },
+  { key: "linkW",   label: "Link width",  type: "range", min: 1, max: 6, step: 0.5 },
+  { key: "glow",    label: "Path glow",   type: "range", css: "--glow", min: 0, max: 20, step: 1, unit: "px" },
+  { key: "bands",   label: "Level bands", type: "range", min: 0, max: 0.15, step: 0.01 },
+  { group: "Effects" },
+  { key: "scanlines", label: "CRT scanlines", type: "check", cls: "scanlines" },
+  { key: "scan",      label: "Scanline strength", type: "range", css: "--scan", min: 0.05, max: 0.5, step: 0.05 },
+  { key: "vignette",  label: "Vignette",      type: "check", cls: "vignette" },
+  { key: "lights",    label: "Amber light glow", type: "check", cls: "lights" },
+  { key: "dim",       label: "Blackout dim (map brightness)", type: "range", css: "--dim", min: 0.3, max: 1, step: 0.05 },
+  { key: "flash",     label: "Attack red frame", type: "check", cls: "flash" },
+];
+
+// ---------- Presets ----------
+const MVP = {
+  bg: "#0b0d0e", panel: "#14171a", border: "#3a3329", text: "#e6e1d6", muted: "#8a8577",
+  accent: "#ffb000", danger: "#ff3b30", ok: "#3ddc84",
+  fontHead: "system-ui, sans-serif", fontText: "system-ui, sans-serif", fontData: "ui-monospace, Consolas, monospace",
+  fontSize: 13, radius: 2, borderW: 1, gap: 10, nodeR: 13, linkW: 2, glow: 0, bands: 0.03,
+  scanlines: false, scan: 0.15, vignette: false, lights: false, dim: 0.75, flash: true,
+};
+const PRESETS = {
+  "MVP plain": MVP,
+  "Bunker amber": { ...MVP, fontHead: "'Saira Stencil One', sans-serif", fontData: "'Share Tech Mono', monospace",
+    borderW: 2, glow: 8, bands: 0.06, scanlines: true, scan: 0.18, vignette: true, lights: true, dim: 0.55 },
+  "CRT terminal": { ...MVP, bg: "#050805", panel: "#0b120b", border: "#1f3a1f", text: "#b8f5b8", muted: "#5e8a5e",
+    accent: "#7dff5a", fontHead: "'VT323', monospace", fontText: "'Share Tech Mono', monospace", fontData: "'VT323', monospace",
+    fontSize: 15, radius: 0, glow: 10, scanlines: true, scan: 0.3, vignette: true },
+  "Ash minimal": { ...MVP, bg: "#18191b", panel: "#202226", border: "#3b3e44", text: "#f0f0f0", muted: "#9a9a9a",
+    accent: "#ff9f1c", danger: "#e63946", ok: "#2ec4b6", fontHead: "'Oswald', sans-serif",
+    fontData: "'IBM Plex Mono', monospace", radius: 6, gap: 14 },
+};
+
+// ---------- Mock data (same shapes as the real backend events) ----------
+const NODES = {
+  "L10-Warden": [540, 55], "L12-Dad": [280, 65],
+  "L20-Shaft": [250, 160], "L20-School": [560, 155],
+  "L30-Relay": [210, 258], "L30-Clinic": [580, 262],
+  "L40-Maya": [260, 355], "L40-Market": [550, 350],
+  "L50-Shelter": [300, 458], "L50-Pumps": [570, 462],
+};
+const LINKS = [
+  ["L10-Warden","L12-Dad"], ["L10-Warden","L20-School"], ["L12-Dad","L20-Shaft"], ["L20-Shaft","L20-School"],
+  ["L20-Shaft","L30-Relay"], ["L20-School","L30-Clinic"], ["L30-Relay","L30-Clinic"], ["L30-Relay","L40-Maya"],
+  ["L30-Clinic","L40-Market"], ["L40-Maya","L40-Market"], ["L40-Maya","L50-Shelter"], ["L40-Market","L50-Pumps"],
+  ["L50-Shelter","L50-Pumps"],
+];
+const PATH = ["L40-Maya", "L40-Market", "L30-Clinic", "L20-School", "L20-Shaft", "L12-Dad"];
+const FEED = {
+  default: [
+    { type: "notice", text: "The Directorate network is online." },
+    { type: "delivered", text: "[L20-School] Lift schedule received." },
+  ],
+  severed: [
+    { type: "notice", text: "Blackout. Directorate network SEVERED." },
+    { type: "device_killed", text: "Device L30-Relay went OFFLINE" },
+    { type: "forwarded", text: "[L40-Market] Not for me. Forwarding..." },
+    { type: "delivered", text: "[L12-Dad] Dad, I'm okay. Staying at the market." },
+    { type: "broadcast", text: "[L50-Pumps] BLACKOUT on Levels 40-50 in 5 minutes." },
+  ],
+  attack: [
+    { type: "notice", text: "DIRECTORATE ATTACK on L40-Maya" },
+    { type: "rejected", text: "[L40-Maya] FORGED MESSAGE REJECTED: INVALID SIGNATURE" },
+    { type: "broadcast", text: "[L12-Dad] BLACKOUT on Levels 40-50 in 5 minutes." },
+  ],
+};
+const METRICS = { delivered: 21, duplicatesDropped: 228, attacksBlocked: 1, expired: 0, rateLimited: 0, avgDelayMs: 723.7 };
+
+// ---------- State ----------
+const app = document.getElementById("app");
+let params = { ...MVP };
+let state = "default";
+
+// localStorage can be blocked (private window, file:// in some browsers): never let that break the page.
+function save() { try { localStorage.setItem("hs-theme-lab", JSON.stringify({ params, state })); } catch (e) {} }
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("hs-theme-lab"));
+    if (saved) { params = { ...MVP, ...saved.params }; state = saved.state || "default"; }
+  } catch (e) {}
+}
+
+// ---------- Build the control panel ----------
+function buildControls() {
+  const box = document.getElementById("controls");
+  box.innerHTML = "";
+  for (const c of CONTROLS) {
+    if (c.group) { box.insertAdjacentHTML("beforeend", `<h2>${c.group}</h2>`); continue; }
+    const row = document.createElement("div");
+    row.className = "row";
+    const id = "c-" + c.key;
+    let input;
+    if (c.type === "select") {
+      input = document.createElement("select");
+      for (const o of c.options) input.add(new Option(o.split(",")[0].replace(/'/g, ""), o));
+    } else {
+      input = document.createElement("input");
+      input.type = c.type === "check" ? "checkbox" : c.type;
+      if (c.type === "range") { input.min = c.min; input.max = c.max; input.step = c.step; }
+    }
+    input.id = id;
+    const value = params[c.key];
+    if (c.type === "check") input.checked = value; else input.value = value;
+    const out = document.createElement("output");
+    if (c.type === "range") out.textContent = value;
+    input.addEventListener("input", () => {
+      params[c.key] = c.type === "check" ? input.checked : c.type === "range" ? Number(input.value) : input.value;
+      if (c.type === "range") out.textContent = params[c.key];
+      apply();
+    });
+    row.innerHTML = `<label for="${id}">${c.label}</label>`;
+    row.append(input);
+    if (c.type === "range") row.append(out);
+    box.append(row);
+  }
+}
+
+function buildButtons() {
+  const p = document.getElementById("presets");
+  p.innerHTML = "";
+  for (const name of Object.keys(PRESETS)) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.onclick = () => { params = { ...PRESETS[name] }; buildControls(); apply(); };
+    p.append(b);
+  }
+  const s = document.getElementById("states");
+  for (const name of ["default", "severed", "attack"]) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.dataset.state = name;
+    b.onclick = () => { state = name; apply(); };
+    s.append(b);
+  }
+}
+
+// ---------- Render ----------
+function drawMap() {
+  const svg = document.getElementById("map");
+  const severed = state !== "default";
+  const cut = new Set(severed ? ["L40-Market|L50-Pumps", "L50-Shelter|L50-Pumps"] : []);
+  const pathLinks = new Set();
+  for (let i = 1; i < PATH.length; i++) pathLinks.add([PATH[i - 1], PATH[i]].sort().join("|"));
+
+  let html = "";
+  // Level bands, top to bottom.
+  ["LEVEL 10", "LEVEL 20", "LEVEL 30", "LEVEL 40", "LEVEL 50"].forEach((name, i) => {
+    const y = 10 + i * 100;
+    html += `<rect class="band" x="0" y="${y}" width="800" height="96" opacity="${i % 2 ? params.bands : params.bands * 2}"/>`;
+    html += `<text class="band-label" x="12" y="${y + 20}">${name}</text>`;
+  });
+  for (const [a, b] of LINKS) {
+    const key = [a, b].sort().join("|");
+    let cls = "link";
+    if (cut.has(key)) cls += " cut";
+    else if (severed && pathLinks.has(key)) cls += " path";
+    const [x1, y1] = NODES[a], [x2, y2] = NODES[b];
+    const w = cls.includes("path") ? params.linkW * 2 : params.linkW;
+    html += `<line id="link-${a}-${b}" class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}"/>`;
+  }
+  for (const [id, [x, y]] of Object.entries(NODES)) {
+    let cls = "node";
+    if (severed && id === "L30-Relay") cls += " offline";
+    else if (severed && PATH.includes(id)) cls += " onpath";
+    html += `<g id="node-${id}" class="${cls}"><circle cx="${x}" cy="${y}" r="${params.nodeR}" stroke-width="${params.borderW + 1}"/>` +
+            `<text x="${x}" y="${y + params.nodeR + 14}">${id}</text></g>`;
+  }
+  svg.innerHTML = html;
+}
+
+function drawSide() {
+  const known = ["delivered", "broadcast", "rejected", "notice"];
+  document.getElementById("feedlist").innerHTML = FEED[state].map(e =>
+    `<li><span class="tag t-${known.includes(e.type) ? e.type : "other"}">${e.type}</span><span>${e.text}</span></li>`).join("");
+  const m = { ...METRICS, attacksBlocked: state === "attack" ? 2 : 1 };
+  const tiles = [["Delivered", m.delivered], ["Duplicates dropped", m.duplicatesDropped], ["Attacks blocked", m.attacksBlocked],
+                 ["Expired", m.expired], ["Rate limited", m.rateLimited], ["Avg delay ms", m.avgDelayMs.toFixed(1)]];
+  document.getElementById("tiles").innerHTML = tiles.map(([l, n]) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+}
+
+function apply() {
+  for (const c of CONTROLS) {
+    if (c.css) app.style.setProperty(c.css, params[c.key] + (c.unit || ""));
+    if (c.cls) app.classList.toggle(c.cls, params[c.key]);
+  }
+  app.classList.toggle("severed", state === "severed");
+  app.classList.toggle("attack", state === "attack");
+  const banner = document.getElementById("banner");
+  banner.className = "head " + (state === "default" ? "online" : "severed");
+  banner.textContent = "Directorate network: " + (state === "default" ? "online" : "SEVERED");
+  document.querySelectorAll("#states button").forEach(b => b.classList.toggle("on", b.dataset.state === state));
+  drawMap();
+  drawSide();
+  save();
+}
+
+// ---------- Export ----------
+function cssVars() {
+  const lines = CONTROLS.filter(c => c.css).map(c => `  ${c.css}: ${params[c.key]}${c.unit || ""};`);
+  const extras = [`  /* map: node radius ${params.nodeR}, link width ${params.linkW}, band opacity ${params.bands} */`,
+    `  /* effects: scanlines ${params.scanlines}, vignette ${params.vignette}, amber lights ${params.lights}, attack frame ${params.flash} */`];
+  return ":root {\n" + lines.join("\n") + "\n" + extras.join("\n") + "\n}";
+}
+async function copy(text) {
+  const out = document.getElementById("out");
+  out.value = text;
+  try { await navigator.clipboard.writeText(text); } catch (e) { out.select(); } // file:// may block the clipboard
+}
+document.getElementById("copyCss").onclick = () => copy(cssVars());
+document.getElementById("copyPicks").onclick = () => copy("Hollow Signal theme picks:\n" + JSON.stringify(params, null, 2));
+document.getElementById("reset").onclick = () => { params = { ...MVP }; state = "default"; buildControls(); apply(); };
+
+load();
+buildButtons();
+buildControls();
+apply();
+</script>
+</body>
+</html>

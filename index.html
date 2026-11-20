@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hollow Signal</title>
+</head>
+<body>
+    <h1>Hollow Signal Dashboard</h1>
+    <p>The network is standing by.</p>
+    <p id="metrics"></p>
+    <!-- Temporary test buttons until the real UI. They call the /api/ endpoints. -->
+    <button onclick="api('/api/start')">START SCENARIO</button>
+    <button onclick="api('/api/attack')">DIRECTORATE ATTACK</button>
+    
+    <!-- This is the blank wall where we will stick our message notes -->
+    <ul id="message-wall"></ul>
+
+    <script>
+        // POST to a control endpoint; show the server's reason if it fails.
+        async function api(url) {
+            const res = await fetch(url, { method: "POST" });
+            if (!res.ok) alert(await res.text());
+        }
+
+        // 1. Turn on the walkie-talkie and tune it to our Go server's /ws door
+        const ws = new WebSocket("ws://localhost:8080/ws");
+
+        // 2. Whenever an event comes through the walkie-talkie...
+        ws.onmessage = function(event) {
+            // The server sends JSON: {type, deviceId, messageId, text}
+            const e = JSON.parse(event.data);
+
+            // Metrics arrive twice a second: update one line, don't add notes.
+            if (e.type === "metrics") {
+                const m = e.metrics;
+                document.getElementById("metrics").textContent =
+                    "Delivered: " + m.delivered +
+                    " | Duplicates dropped: " + m.duplicatesDropped +
+                    " | Attacks blocked: " + m.attacksBlocked +
+                    " | Expired: " + m.expired +
+                    " | Rate limited: " + m.rateLimited +
+                    " | Queue drops: " + m.queueDropped +
+                    " | Avg delay: " + m.avgDelayMs.toFixed(1) + " ms";
+                return;
+            }
+
+            // Create a new sticky note, e.g. "[delivered] ..."
+            const note = document.createElement("li");
+            note.textContent = "[" + e.type + "] " + e.text;
+            
+            // Stick it to the wall
+            document.getElementById("message-wall").appendChild(note);
+        };
+    </script>
+</body>
+</html>
