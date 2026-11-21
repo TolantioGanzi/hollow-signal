@@ -8,9 +8,10 @@ Two billion people live in the Hollow, underground cities run by the Directorate
 
 Hollow Signal lets every device carry messages for its neighbors. A message hops from device to device, and any device that can't pass it on yet holds it until someone comes into range. One tool covers check-ins, blackout warnings, sickness reports and calls for help, and the Directorate can't forge messages on it.
 
-> Demo video: _link coming_
+> Demo video: (https://screenapp.io/app/share/Jimfbi1No1K1yQ9Ky_QjMy2t)
 >
-> Screenshot: _coming_
+> Screenshot: <img width="2880" height="1402" alt="chrome_Y9ib5bKLBF" src="https://github.com/user-attachments/assets/9483b36b-7a24-4321-8666-7c84929f194b" />
+
 
 ## What it does
 
