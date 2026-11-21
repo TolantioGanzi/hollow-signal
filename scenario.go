@@ -121,6 +121,7 @@ const (
 
 // Message IDs, fixed so the test and the UI can refer to them.
 const (
+	MsgMorning  = "checkin-morning"
 	MsgCheckIn  = "checkin-maya"
 	MsgChatter1 = "chatter-1"
 	MsgChatter2 = "chatter-2"
@@ -177,6 +178,17 @@ func VideoScenario() []Step {
 			Do: func(n *Network) error {
 				n.SetDirectorate(true)
 				return nil
+			},
+			Pause: 4 * time.Second,
+		},
+		{
+			Caption: "A regular morning: Maya tells her dad she is heading to the market.",
+			Do: func(n *Network) error {
+				return n.Send(NewMessage(MsgMorning, Maya, Dad, TypeCheckIn, "Morning, Dad. Heading to the market."))
+			},
+			WaitFor: []Expect{
+				{EventDelivered, Dad, MsgMorning},
+				{EventAcked, Maya, MsgMorning},
 			},
 			Pause: 4 * time.Second,
 		},
@@ -265,4 +277,20 @@ func VideoScenario() []Step {
 			},
 		},
 	}
+}
+
+// Phase is a named part of the video scenario that the UI can run on its
+// own button. It covers VideoScenario()[From:To].
+type Phase struct {
+	Name     string
+	From, To int
+}
+
+// Phases split the video scenario into the four parts of the demo, in
+// order. Together they cover every step exactly once.
+var Phases = []Phase{
+	{"Regular day", 0, 2},
+	{"Blackout", 2, 4},
+	{"Emergency first", 4, 7},
+	{"Directorate attack", 7, 10},
 }

@@ -1,55 +1,290 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Hollow Signal</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollow Signal</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+<style>
+/* Theme: picked in design/theme-lab.html, refined in design/dashboard-lab.html */
+:root {
+  --bg: #0b0d0e;
+  --panel: #0d0f12;
+  --border: #594f40;
+  --text: #eee4cd;
+  --muted: #8a8577;
+  --accent: #ffb000;
+  --danger: #ff3b30;
+  --ok: #3ddc84;
+  --font-head: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-text: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-data: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --font-size: 11px;
+  --radius: 0px;
+  --border-w: 1px;
+  --gap: 6px;
+  --glow: 20px;
+  --dim: 0.75;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: grid; height: 100vh;
+  grid-template-rows: max-content minmax(0, 1fr) max-content; grid-template-columns: 60fr 40fr;
+  gap: var(--gap); padding: var(--gap);
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-text); font-size: var(--font-size);
+  overflow: hidden;
+}
+.panel { background: var(--panel); border: var(--border-w) solid color-mix(in srgb, var(--border) 55%, transparent); border-radius: var(--radius); min-height: 0; }
+.head { font-family: var(--font-head); letter-spacing: .06em; text-transform: uppercase; }
+.data { font-family: var(--font-data); }
+h3 { margin: 0; padding: 5px 10px; font-size: 1em; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+h3::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* Top bar */
+#top, #bottom { min-height: max-content; }
+#mapwrap, #side { min-height: 0; overflow: hidden; }
+#top { grid-column: 1 / 3; display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; }
+#top .brandbox { display: flex; flex-direction: column; gap: 2px; }
+#top .tagline { font-size: .85em; color: var(--muted); }
+#top .brand { font-size: 1.5em; color: var(--accent); font-weight: 700; }
+#banner { padding: 8px 18px; font-size: 1.25em; border-radius: var(--radius); font-weight: 700; color: var(--bg); background: var(--muted); }
+#banner.online { background: var(--ok); }
+#banner.severed { background: var(--danger); }
+#sig { color: var(--muted); }
+#sig b.on { color: var(--ok); }
+#sig b.off { color: var(--danger); }
+
+/* Map */
+#mapwrap { transition: filter .3s; display: flex; flex-direction: column; }
+#map { width: 100%; flex: 1 1 0; min-height: 0; height: auto; display: block; }
+.band { fill: var(--text); }
+.band-label { fill: var(--muted); font-family: var(--font-data); font-size: 12px; }
+.link { stroke: var(--border); stroke-width: 1.5; stroke-linecap: round; }
+.link.cut { stroke: var(--danger); stroke-dasharray: 7 7; }
+.link.path { stroke: var(--accent); stroke-width: 4; filter: drop-shadow(0 0 var(--glow) var(--accent)); }
+.node circle { fill: var(--accent); stroke: var(--bg); stroke-width: 3; }
+.node text { fill: var(--text); font-family: var(--font-data); font-size: 11px; text-anchor: middle; }
+.node.offline circle { fill: var(--muted); }
+.node text.lvl { fill: var(--muted); font-size: 9px; }
+.node.offline text { fill: var(--muted); text-decoration: line-through; }
+.node.onpath circle { fill: var(--accent); }
+
+/* Right panel */
+#side { display: grid; grid-template-rows: minmax(0, 1fr) max-content; gap: var(--gap); min-height: 0; }
+#feed { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#feedlist { list-style: none; margin: 0; padding: 6px 10px; overflow-y: auto; flex: 1; min-height: 0; }
+#feedlist li { padding: 2px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); display: flex; gap: 8px; align-items: baseline; }
+.time { flex: none; color: var(--muted); }
+.tag { flex: none; width: 92px; text-align: center; font-size: .8em; padding: 1px 4px; border-radius: var(--radius); border: 1px solid currentColor; text-transform: uppercase; }
+.t-ok { color: var(--ok); } .t-accent { color: var(--accent); } .t-danger { color: var(--danger); }
+.t-muted { color: var(--muted); } .t-other { color: var(--text); }
+#tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+.tile { padding: 4px 0; }
+.tile .n { font-size: 1.7em; color: var(--accent); }
+.tile.good .n { color: var(--ok); } .tile.bad .n { color: var(--danger); }
+.tile .l { font-size: .75em; color: var(--muted); text-transform: uppercase; }
+
+/* Bottom bar */
+#bottom { grid-column: 1 / 3; display: flex; gap: 8px; padding: 6px; }
+#bottom button { font-family: var(--font-head); letter-spacing: .05em; text-transform: uppercase; font-size: 1em; padding: 8px 14px; cursor: pointer;
+  background: transparent; color: var(--text); border: var(--border-w) solid var(--border); border-radius: var(--radius); }
+#bottom button:hover:enabled { border-color: var(--accent); }
+#bottom button:disabled { cursor: default; }
+#bottom button:disabled:not(.done):not(.now) { opacity: .35; }
+#bottom button.next { color: var(--accent); border-color: var(--accent); }
+#bottom button.now { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+#bottom button.now::after { content: " (running)"; }
+#bottom button.done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+#bottom button.done::before { content: "\2713  "; }
+#bottom #full { margin-left: auto; }
+#bottom button.attack { color: var(--danger); border-color: var(--danger); }
+</style>
 </head>
 <body>
-    <h1>Hollow Signal Dashboard</h1>
-    <p>The network is standing by.</p>
-    <p id="metrics"></p>
-    <!-- Temporary test buttons until the real UI. They call the /api/ endpoints. -->
-    <button onclick="api('/api/start')">START SCENARIO</button>
-    <button onclick="api('/api/attack')">DIRECTORATE ATTACK</button>
-    
-    <!-- This is the blank wall where we will stick our message notes -->
-    <ul id="message-wall"></ul>
+  <header id="top" class="panel">
+    <span class="brandbox"><span class="brand head">Hollow Signal</span><span class="tagline">The network is the people</span></span>
+    <span id="banner" class="head">Directorate network: unknown</span>
+    <span id="sig" class="data">Signatures: <b class="on">ON</b></span>
+  </header>
 
-    <script>
-        // POST to a control endpoint; show the server's reason if it fails.
-        async function api(url) {
-            const res = await fetch(url, { method: "POST" });
-            if (!res.ok) alert(await res.text());
-        }
+  <section id="mapwrap" class="panel">
+    <h3 class="head">Levels 10 to 50</h3>
+    <svg id="map" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet"></svg>
+  </section>
 
-        // 1. Turn on the walkie-talkie and tune it to our Go server's /ws door
-        const ws = new WebSocket("ws://localhost:8080/ws");
+  <section id="side">
+    <div id="feed" class="panel"><h3 class="head">Live feed</h3><ul id="feedlist" class="data"></ul></div>
+    <div class="panel"><h3 class="head">Network health</h3><div id="tiles" class="data"></div></div>
+  </section>
 
-        // 2. Whenever an event comes through the walkie-talkie...
-        ws.onmessage = function(event) {
-            // The server sends JSON: {type, deviceId, messageId, text}
-            const e = JSON.parse(event.data);
+  <footer id="bottom" class="panel">
+    <!-- One button per part of the demo (Phases in scenario.go), run in order. -->
+    <button class="phase" data-n="1">1 · Regular day</button>
+    <button class="phase" data-n="2">2 · Blackout</button>
+    <button class="phase" data-n="3">3 · Emergency first</button>
+    <button class="phase" data-n="4">4 · Directorate attack</button>
+    <button id="full" onclick="api('/api/start')">▶ Full simulation</button>
+    <button class="attack" onclick="api('/api/attack')">⚠ Attack</button>
+  </footer>
 
-            // Metrics arrive twice a second: update one line, don't add notes.
-            if (e.type === "metrics") {
-                const m = e.metrics;
-                document.getElementById("metrics").textContent =
-                    "Delivered: " + m.delivered +
-                    " | Duplicates dropped: " + m.duplicatesDropped +
-                    " | Attacks blocked: " + m.attacksBlocked +
-                    " | Expired: " + m.expired +
-                    " | Rate limited: " + m.rateLimited +
-                    " | Queue drops: " + m.queueDropped +
-                    " | Avg delay: " + m.avgDelayMs.toFixed(1) + " ms";
-                return;
-            }
+<script>
+// ---------- Map layout ----------
+// Where each demo device sits on the cross-section (viewBox 800x520).
+// Devices not listed here are placed automatically from their level number.
+const NODE_POS = {
+  "L10-Warden": [540, 55], "L12-Dad": [280, 65],
+  "L20-Shaft": [250, 160], "L20-School": [560, 155],
+  "L30-Relay": [210, 258], "L30-Clinic": [580, 262],
+  "L40-Maya": [260, 355], "L40-Market": [550, 350],
+  "L50-Shelter": [300, 458], "L50-Pumps": [570, 462],
+};
+const BAND_OPACITY = 0.06; // theme pick
+const NODE_R = 11;         // theme pick
 
-            // Create a new sticky note, e.g. "[delivered] ..."
-            const note = document.createElement("li");
-            note.textContent = "[" + e.type + "] " + e.text;
-            
-            // Stick it to the wall
-            document.getElementById("message-wall").appendChild(note);
-        };
-    </script>
+// position returns [x, y] for a device ID like "L40-Maya".
+let autoX = 400;
+function position(id) {
+  if (!NODE_POS[id]) {
+    const level = parseInt(id.slice(1), 10) || 30;     // "L40-..." -> 40
+    NODE_POS[id] = [autoX, 60 + (level - 10) * 10];   // 10 px per level
+    autoX = autoX >= 720 ? 400 : autoX + 60;
+  }
+  return NODE_POS[id];
+}
+
+// drawMap renders the topology from GET /api/topology.
+function drawMap(top) {
+  let html = "";
+  ["LEVEL 10", "LEVEL 20", "LEVEL 30", "LEVEL 40", "LEVEL 50"].forEach((name, i) => {
+    const y = 10 + i * 100;
+    html += `<rect class="band" x="0" y="${y}" width="800" height="96" opacity="${i % 2 ? BAND_OPACITY : BAND_OPACITY * 2}"/>`;
+    html += `<text class="band-label" x="12" y="${y + 20}">${name}</text>`;
+  });
+  for (const l of top.links) {
+    const [x1, y1] = position(l.a), [x2, y2] = position(l.b);
+    html += `<line id="link-${l.a}-${l.b}" class="link${l.up ? "" : " cut"}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  }
+  for (const d of top.devices) {
+    const [x, y] = position(d.id);
+    const [level, name] = d.id.split("-"); // "L40-Maya" -> "L40", "Maya"
+    html += `<g id="node-${d.id}" class="node${d.alive ? "" : " offline"}">` +
+            `<circle cx="${x}" cy="${y}" r="${NODE_R}"/>` +
+            `<text x="${x}" y="${y + NODE_R + 14}">${name}</text><text class="lvl" x="${x}" y="${y + NODE_R + 27}">${level}</text></g>`;
+  }
+  document.getElementById("map").innerHTML = html;
+}
+
+async function loadTopology() {
+  const res = await fetch("/api/topology");
+  drawMap(await res.json());
+}
+
+// ---------- Feed ----------
+// Which color tag each event type gets.
+const TAG = {
+  delivered: "t-ok", acked: "t-ok",
+  broadcast: "t-accent",
+  rejected: "t-danger", expired: "t-danger", rate_limited: "t-danger", dropped: "t-danger",
+  device_killed: "t-danger", link_cut: "t-danger",
+  notice: "t-muted", directorate: "t-muted",
+};
+const MAX_ROWS = 300;
+
+function addFeedRow(e) {
+  const li = document.createElement("li");
+  const tag = document.createElement("span");
+  tag.className = "tag " + (TAG[e.type] || "t-other");
+  tag.textContent = e.type.replace("_", " ");
+  const text = document.createElement("span");
+  text.textContent = e.text; // textContent, not innerHTML: event text is never parsed as HTML
+  const time = document.createElement("span");
+  time.className = "time";
+  time.textContent = new Date().toLocaleTimeString("en-GB"); // time the browser received it
+  li.append(time, tag, text);
+  const list = document.getElementById("feedlist");
+  // Follow new rows only if the reader is already at the bottom,
+  // so scrolling up to read an earlier row isn't interrupted.
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+  list.append(li); // newest at the bottom
+  while (list.children.length > MAX_ROWS) list.firstChild.remove();
+  if (atBottom) list.scrollTop = list.scrollHeight;
+}
+
+// ---------- Status bar and metrics ----------
+function setBanner(state) { // "ONLINE" or "SEVERED"
+  const b = document.getElementById("banner");
+  b.className = "head " + (state === "ONLINE" ? "online" : "severed");
+  b.textContent = "Directorate network: " + state;
+}
+
+function setSignatures(on) {
+  const b = document.querySelector("#sig b");
+  b.className = on ? "on" : "off";
+  b.textContent = on ? "ON" : "OFF";
+}
+
+function drawMetrics(m) {
+  // The third value colors the number: good = green, bad = red, plain = amber.
+  const tiles = [["Delivered", m.delivered, "good"], ["Duplicates dropped", m.duplicatesDropped, ""], ["Attacks blocked", m.attacksBlocked, "good"],
+                 ["Expired", m.expired, "bad"], ["Rate limited", m.rateLimited, "bad"], ["Avg delay ms", m.avgDelayMs.toFixed(1), ""]];
+  document.getElementById("tiles").innerHTML =
+    tiles.map(([l, n, c]) => `<div class="tile ${c}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+}
+
+// ---------- Live events ----------
+const TOPOLOGY_EVENTS = ["link_cut", "link_restored", "device_killed", "device_revived"];
+function handle(e) {
+  if (e.type === "metrics") { drawMetrics(e.metrics); return; }
+  if (e.type === "directorate") setBanner(e.text);
+  if (TOPOLOGY_EVENTS.includes(e.type)) loadTopology(); // map follows cuts and outages live
+  if (e.type === "notice" && e.text.startsWith("Signature verification ")) setSignatures(e.text.endsWith("ON"));
+  addFeedRow(e);
+}
+
+// connect opens the websocket. If the server restarts, it reconnects;
+// the server replays recent events, so the feed is cleared first.
+function connect() {
+  const ws = new WebSocket("ws://" + location.host + "/ws");
+  ws.onopen = () => { document.getElementById("feedlist").innerHTML = ""; loadTopology(); };
+  ws.onmessage = (msg) => handle(JSON.parse(msg.data));
+  ws.onclose = () => setTimeout(connect, 2000);
+}
+
+// ---------- Buttons ----------
+// POST to a control endpoint; show the server's reason if it fails.
+async function api(url) {
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) alert(await res.text());
+  refreshStatus();
+}
+
+document.querySelectorAll("#bottom .phase").forEach(b => {
+  b.onclick = () => api("/api/phase?n=" + b.dataset.n);
+});
+
+// refreshStatus enables only the buttons that can run now:
+// the next part in order, or the full simulation before anything ran.
+async function refreshStatus() {
+  let s;
+  try { s = await (await fetch("/api/status")).json(); } catch { return; } // server restarting
+  document.querySelectorAll("#bottom .phase").forEach(b => {
+    const n = +b.dataset.n;
+    const now = s.running && n === s.done;
+    b.disabled = s.running || n !== s.done + 1;
+    b.classList.toggle("now", now);
+    b.classList.toggle("done", n <= s.done && !now);
+    b.classList.toggle("next", !s.running && n === s.done + 1);
+  });
+  document.getElementById("full").disabled = s.running || s.done > 0;
+}
+setInterval(refreshStatus, 1000);
+refreshStatus();
+
+drawMetrics({ delivered: 0, duplicatesDropped: 0, attacksBlocked: 0, expired: 0, rateLimited: 0, avgDelayMs: 0 });
+connect();
+</script>
 </body>
 </html>

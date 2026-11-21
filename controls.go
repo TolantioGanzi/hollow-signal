@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -17,11 +18,15 @@ import (
 // Success is 204 No Content; a bad parameter or a network error is 400
 // with the reason as text.
 type Controller struct {
-	n       *Network
-	runner  *Runner
-	pause   func(time.Duration) // passed to the scenario: time.Sleep live, no-op in tests
-	started atomic.Bool         // the scenario can run only once per server
-	nextID  atomic.Int64        // for unique IDs of messages sent from buttons
+	n      *Network
+	runner *Runner
+	pause  func(time.Duration) // passed to the scenario: time.Sleep live, no-op in tests
+	// mu guards done and running. Phases run once per server, in order;
+	// the full scenario runs only if no phase has run yet.
+	mu      sync.Mutex
+	done    int          // how many phases have finished (or are running)
+	running bool         // a phase or the full scenario is playing right now
+	nextID  atomic.Int64 // for unique IDs of messages sent from buttons
 	mux     *http.ServeMux
 }
 
@@ -31,6 +36,8 @@ func NewController(n *Network, runner *Runner, pause func(time.Duration)) *Contr
 	// "METHOD /path" patterns: the mux answers 405 for any other method.
 	c.mux.HandleFunc("GET /api/topology", c.topology)
 	c.mux.HandleFunc("POST /api/start", c.start)
+	c.mux.HandleFunc("POST /api/phase", c.phase)
+	c.mux.HandleFunc("GET /api/status", c.status)
 	c.mux.HandleFunc("POST /api/directorate", c.directorate)
 	c.mux.HandleFunc("POST /api/verification", c.verification)
 	c.mux.HandleFunc("POST /api/link/cut", c.linkAction(n.CutLink))
@@ -83,19 +90,75 @@ func (c *Controller) topology(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(c.n.Topology())
 }
 
-// start runs the video scenario in the background and answers at once.
+// start runs the whole video scenario in the background and answers at once.
+// It is refused once any phase has run.
 func (c *Controller) start(w http.ResponseWriter, r *http.Request) {
-	// CompareAndSwap: only the first caller flips false -> true.
-	if !c.started.CompareAndSwap(false, true) {
-		http.Error(w, "scenario already started", http.StatusConflict)
+	c.mu.Lock()
+	if c.running || c.done > 0 {
+		c.mu.Unlock()
+		http.Error(w, "scenario already started: restart the server to run it again", http.StatusConflict)
 		return
 	}
+	c.running, c.done = true, len(Phases)
+	c.mu.Unlock()
+	c.play(VideoScenario())
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// phase runs one part of the scenario (?n=1..4) in the background.
+// Parts must run in order, one at a time.
+func (c *Controller) phase(w http.ResponseWriter, r *http.Request) {
+	n, err := strconv.Atoi(r.URL.Query().Get("n"))
+	if err != nil || n < 1 || n > len(Phases) {
+		http.Error(w, fmt.Sprintf("n must be 1 to %d", len(Phases)), http.StatusBadRequest)
+		return
+	}
+	c.mu.Lock()
+	var refuse string
+	switch {
+	case c.running:
+		refuse = "wait for the current part to finish"
+	case n <= c.done:
+		refuse = "that part already ran: restart the server to run it again"
+	case n != c.done+1:
+		refuse = fmt.Sprintf("run part %d (%s) first", c.done+1, Phases[c.done].Name)
+	}
+	if refuse != "" {
+		c.mu.Unlock()
+		http.Error(w, refuse, http.StatusConflict)
+		return
+	}
+	c.running, c.done = true, n
+	c.mu.Unlock()
+	p := Phases[n-1]
+	c.play(VideoScenario()[p.From:p.To])
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// play runs steps in the background, then clears the running flag.
+func (c *Controller) play(steps []Step) {
 	go func() {
-		if err := c.runner.Run(c.n, VideoScenario(), c.pause); err != nil {
+		if err := c.runner.Run(c.n, steps, c.pause); err != nil {
 			c.n.Notice("Scenario error: " + err.Error())
 		}
+		c.mu.Lock()
+		c.running = false
+		c.mu.Unlock()
 	}()
-	w.WriteHeader(http.StatusAccepted)
+}
+
+// Status is what GET /api/status returns, so the UI can enable the right buttons.
+type Status struct {
+	Done    int  `json:"done"` // parts finished or running
+	Running bool `json:"running"`
+}
+
+func (c *Controller) status(w http.ResponseWriter, r *http.Request) {
+	c.mu.Lock()
+	s := Status{Done: c.done, Running: c.running}
+	c.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(s)
 }
 
 func (c *Controller) directorate(w http.ResponseWriter, r *http.Request) {

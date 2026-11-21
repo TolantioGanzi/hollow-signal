@@ -31,15 +31,16 @@ Needs Go 1.27.4 or newer (from `go.mod`). With Go 1.21 or newer installed, `go` 
 go run .
 ```
 
-Open http://localhost:8080 and click **START SCENARIO**. The scripted scenario plays the demo:
+Open http://localhost:8080 and play the demo in four parts, one button each: **1 · Regular day**, **2 · Blackout**, **3 · Emergency first**, **4 · Directorate attack**. Each part waits for your click, so you can narrate between them. **▶ Full simulation** plays all four back to back. The demo:
 
+0. A regular morning: Maya tells her dad she is heading to the market.
 1. The Directorate network is severed, and a relay on Level 30 loses power.
 2. Maya on Level 40 sends "I'm okay" to her dad on Level 12. It finds a detour and she gets a receipt.
 3. The pumps on Level 50 are cut off while chatter piles up for them. When a link returns, the Warden's blackout warning reaches them *before* the chatter.
 4. The Directorate injects a forged order, "Level 38 is safe, return": **rejected, invalid signature**.
 5. With signature checking switched off, the same forged order spreads to everyone. That's why the signatures matter.
 
-The scenario runs once per server start. To play it again, restart with `go run .`.
+Parts run in order, once per server start. **⚠ Attack** injects another forged order at any time. To play it again, restart with `go run .`.
 
 ## Tests
 
@@ -48,7 +49,7 @@ go vet ./...
 go test ./...
 ```
 
-66 tests cover routing, cut and restored links, receipts, priority, signing and forgery, expiry, paths, metrics, rate limits, the queue cap, the HTTP controls and the websocket hub. One test runs the exact video scenario end to end. The tests wait on events instead of sleeping, and they use a fake clock for expiry.
+70 tests cover routing, cut and restored links, receipts, priority, signing and forgery, expiry, paths, metrics, rate limits, the queue cap, the HTTP controls and the websocket hub. One test runs the exact video scenario end to end. The tests wait on events instead of sleeping, and they use a fake clock for expiry.
 
 ## How it works
 

@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // newTestController builds the demo network with a controller on top.
@@ -125,4 +127,69 @@ func TestStartRunsScenarioOnce(t *testing.T) {
 	if err := r.waitFor(Expect{EventBroadcast, Dad, MsgForged}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// waitIdle polls /api/status until no part is running.
+func waitIdle(t *testing.T, c *Controller) Status {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		rec := call(c, "GET", "/api/status")
+		wantStatus(t, rec, http.StatusOK)
+		var s Status
+		if err := json.Unmarshal(rec.Body.Bytes(), &s); err != nil {
+			t.Fatal(err)
+		}
+		if !s.Running {
+			return s
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("part still running after 10s")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestPhasesCoverEveryStepInOrder(t *testing.T) {
+	next := 0
+	for _, p := range Phases {
+		if p.From != next || p.To <= p.From {
+			t.Fatalf("phase %q covers [%d:%d], want to start at %d", p.Name, p.From, p.To, next)
+		}
+		next = p.To
+	}
+	if next != len(VideoScenario()) {
+		t.Fatalf("phases end at step %d, scenario has %d", next, len(VideoScenario()))
+	}
+}
+
+func TestPhasesRunInOrder(t *testing.T) {
+	c, r := newTestController(t)
+	wantStatus(t, call(c, "POST", "/api/phase?n=2"), http.StatusConflict) // part 1 first
+	wantStatus(t, call(c, "POST", "/api/phase?n=9"), http.StatusBadRequest)
+
+	for n := 1; n <= len(Phases); n++ {
+		wantStatus(t, call(c, "POST", fmt.Sprintf("/api/phase?n=%d", n)), http.StatusAccepted)
+		if s := waitIdle(t, c); s.Done != n {
+			t.Fatalf("after part %d, done = %d", n, s.Done)
+		}
+	}
+	wantStatus(t, call(c, "POST", "/api/phase?n=1"), http.StatusConflict) // already ran
+	if err := r.waitFor(Expect{EventBroadcast, Dad, MsgForged}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFullScenarioRefusedAfterAPhase(t *testing.T) {
+	c, _ := newTestController(t)
+	wantStatus(t, call(c, "POST", "/api/phase?n=1"), http.StatusAccepted)
+	wantStatus(t, call(c, "POST", "/api/start"), http.StatusConflict)
+	waitIdle(t, c)
+}
+
+func TestPhaseRefusedDuringFullScenario(t *testing.T) {
+	c, _ := newTestController(t)
+	wantStatus(t, call(c, "POST", "/api/start"), http.StatusAccepted)
+	wantStatus(t, call(c, "POST", "/api/phase?n=1"), http.StatusConflict)
+	waitIdle(t, c)
 }
